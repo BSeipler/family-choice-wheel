@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
-import { createClient, type Client } from '@libsql/client'
-import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql'
+import type { Client } from '@libsql/client'
+import type { LibSQLDatabase } from 'drizzle-orm/libsql'
 import { config } from 'dotenv'
 import * as schema from './schema.ts'
 
@@ -21,28 +21,36 @@ function databaseUrl(): string {
   return `file:${filePath}`
 }
 
-export function getDb(): LibSQLDatabase<typeof schema> {
+async function connect(url: string): Promise<LibSQLDatabase<typeof schema>> {
+  if (url.startsWith('file:')) {
+    const { createClient } = await import('@libsql/client')
+    const { drizzle } = await import('drizzle-orm/libsql')
+    client = createClient({ url, authToken: process.env.TURSO_AUTH_TOKEN })
+    return drizzle(client, { schema })
+  }
+  const { createClient } = await import('@libsql/client/http')
+  const { drizzle } = await import('drizzle-orm/libsql/http')
+  client = createClient({ url, authToken: process.env.TURSO_AUTH_TOKEN })
+  return drizzle(client, { schema })
+}
+
+export async function getDb(): Promise<LibSQLDatabase<typeof schema>> {
   if (db) return db
   const url = databaseUrl()
   if (url.startsWith('file:')) {
     mkdirSync(dirname(url.slice('file:'.length)), { recursive: true })
   }
-  client = createClient({
-    url,
-    authToken: process.env.TURSO_AUTH_TOKEN,
-  })
-  db = drizzle(client, { schema })
+  db = await connect(url)
   return db
 }
 
 export function getClient(): Client {
-  getDb()
   if (!client) throw new Error('Database client is not ready.')
   return client
 }
 
 export async function ensureSchema(): Promise<void> {
-  getDb()
+  await getDb()
   const sqlClient = getClient()
   await sqlClient.execute(`
     CREATE TABLE IF NOT EXISTS settings (

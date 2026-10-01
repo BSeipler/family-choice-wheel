@@ -109,13 +109,13 @@ app.onError((err, c) => {
 
 app.get('/api/health', async (c) => {
   await ensureSchema()
-  await getDb().select().from(settings).limit(1)
+  await (await getDb()).select().from(settings).limit(1)
   return c.json({ ok: true })
 })
 
 app.get('/api/state', async (c) => {
   await ensureSchema()
-  const db = getDb()
+  const db = await getDb()
   const [settingRows, peopleRows, entryRows, historyRows] = await Promise.all([
     db.select().from(settings).where(eq(settings.id, 'default')),
     db.select().from(people),
@@ -139,7 +139,7 @@ app.get('/api/state', async (c) => {
 app.put('/api/settings', async (c) => {
   await ensureSchema()
   const body = await c.req.json<{ tmdbApiKey?: string; watchRegion?: string }>()
-  const db = getDb()
+  const db = await getDb()
   await db
     .update(settings)
     .set({
@@ -156,7 +156,7 @@ app.post('/api/people', async (c) => {
   const name = body.name?.trim()
   if (!name) fail(400, { error: 'Name is required.' })
   const color = body.color?.trim() || '#e74c3c'
-  const db = getDb()
+  const db = await getDb()
   const existing = await db.select().from(people)
   const person: Person = {
     id: newId(),
@@ -172,7 +172,7 @@ app.patch('/api/people/:id', async (c) => {
   await ensureSchema()
   const id = c.req.param('id')
   const body = await c.req.json<{ name?: string; color?: string }>()
-  const db = getDb()
+  const db = await getDb()
   const patch: { name?: string; color?: string } = {}
   if (typeof body.name === 'string' && body.name.trim()) patch.name = body.name.trim()
   if (typeof body.color === 'string' && body.color.trim()) patch.color = body.color.trim()
@@ -185,7 +185,7 @@ app.patch('/api/people/:id', async (c) => {
 app.delete('/api/people/:id', async (c) => {
   await ensureSchema()
   const id = c.req.param('id')
-  const db = getDb()
+  const db = await getDb()
   await db.delete(entries).where(eq(entries.personId, id))
   await db.delete(people).where(eq(people.id, id))
   return c.json({ ok: true })
@@ -216,7 +216,7 @@ app.post('/api/entries', async (c) => {
   }
 
   const wheelId = parseWheelId(body.wheelId)
-  const db = getDb()
+  const db = await getDb()
   const personRows = await db.select().from(people).where(eq(people.id, personId))
   const person = personRows[0]
   if (!person) fail(404, { error: 'Person not found.', code: 'NOT_FOUND' })
@@ -331,7 +331,7 @@ app.post('/api/spin', async (c) => {
   await ensureSchema()
   const body = (await c.req.json().catch(() => ({}))) as { wheelId?: WheelId }
   const wheelId = parseWheelId(body.wheelId)
-  const db = getDb()
+  const db = await getDb()
   const [peopleRows, entryRows] = await Promise.all([
     db.select().from(people),
     db.select().from(entries).where(eq(entries.wheelId, wheelId)),
