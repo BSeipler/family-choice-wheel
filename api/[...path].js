@@ -360,7 +360,7 @@ function fail(status, body) {
   throw new HTTPException(status, { message: JSON.stringify(body) });
 }
 var app = new Hono();
-var OPEN_API = /* @__PURE__ */ new Set(["/api/health", "/api/auth/login", "/api/auth/session", "/api/auth/logout"]);
+var OPEN_API = /* @__PURE__ */ new Set(["/api/health", "/api/login", "/api/session", "/api/logout"]);
 app.use("/api/*", async (c, next) => {
   if (OPEN_API.has(c.req.path)) return next();
   if (!readSession(c)) {
@@ -386,7 +386,7 @@ app.onError((err, c) => {
     503
   );
 });
-app.post("/api/auth/login", async (c) => {
+app.post("/api/login", async (c) => {
   const body = await c.req.json().catch(() => ({ password: "" }));
   if (!passwordMatches(typeof body.password === "string" ? body.password : "")) {
     return c.json({ error: "That password is not right.", code: "UNAUTHORIZED" }, 401);
@@ -394,10 +394,10 @@ app.post("/api/auth/login", async (c) => {
   writeSession(c);
   return c.json({ ok: true });
 });
-app.get("/api/auth/session", (c) => {
+app.get("/api/session", (c) => {
   return c.json({ ok: readSession(c) });
 });
-app.post("/api/auth/logout", (c) => {
+app.post("/api/logout", (c) => {
   clearSession(c);
   return c.json({ ok: true });
 });

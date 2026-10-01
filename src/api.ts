@@ -16,14 +16,14 @@ export function isApiError(err: unknown): err is Error & { body: ApiErrorBody } 
 }
 
 export async function fetchSession(): Promise<boolean> {
-  const res = await fetch('/api/auth/session')
+  const res = await fetch('/api/session')
   if (!res.ok) return false
   const data = (await res.json()) as { ok?: boolean }
   return Boolean(data.ok)
 }
 
 export async function login(password: string): Promise<void> {
-  const res = await fetch('/api/auth/login', {
+  const res = await fetch('/api/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ password }),
@@ -32,7 +32,7 @@ export async function login(password: string): Promise<void> {
 }
 
 export async function logout(): Promise<void> {
-  await fetch('/api/auth/logout', { method: 'POST' })
+  await fetch('/api/logout', { method: 'POST' })
 }
 
 export async function fetchState(): Promise<AppState> {

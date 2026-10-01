@@ -89,7 +89,7 @@ function fail(status: 400 | 404 | 503, body: ApiErrorBody): never {
 
 const app = new Hono()
 
-const OPEN_API = new Set(['/api/health', '/api/auth/login', '/api/auth/session', '/api/auth/logout'])
+const OPEN_API = new Set(['/api/health', '/api/login', '/api/session', '/api/logout'])
 
 app.use('/api/*', async (c, next) => {
   if (OPEN_API.has(c.req.path)) return next()
@@ -118,7 +118,8 @@ app.onError((err, c) => {
   )
 })
 
-app.post('/api/auth/login', async (c) => {
+// Vercel only routes this catch-all for a single /api/* segment, same as /api/people/:id.
+app.post('/api/login', async (c) => {
   const body = await c.req.json<{ password?: string }>().catch(() => ({ password: '' }))
   if (!passwordMatches(typeof body.password === 'string' ? body.password : '')) {
     return c.json({ error: 'That password is not right.', code: 'UNAUTHORIZED' } satisfies ApiErrorBody, 401)
@@ -127,11 +128,11 @@ app.post('/api/auth/login', async (c) => {
   return c.json({ ok: true })
 })
 
-app.get('/api/auth/session', (c) => {
+app.get('/api/session', (c) => {
   return c.json({ ok: readSession(c) })
 })
 
-app.post('/api/auth/logout', (c) => {
+app.post('/api/logout', (c) => {
   clearSession(c)
   return c.json({ ok: true })
 })
