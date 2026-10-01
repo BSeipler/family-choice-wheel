@@ -67,6 +67,7 @@ export type ApiErrorBody = {
     | 'INCOMPLETE'
     | 'NOT_FOUND'
     | 'DB'
+    | 'UNAUTHORIZED'
   personName?: string
   pickedAt?: number
   certification?: string | null

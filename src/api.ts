@@ -15,6 +15,26 @@ export function isApiError(err: unknown): err is Error & { body: ApiErrorBody } 
   return err instanceof Error && 'body' in err
 }
 
+export async function fetchSession(): Promise<boolean> {
+  const res = await fetch('/api/auth/session')
+  if (!res.ok) return false
+  const data = (await res.json()) as { ok?: boolean }
+  return Boolean(data.ok)
+}
+
+export async function login(password: string): Promise<void> {
+  const res = await fetch('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password }),
+  })
+  await parse(res)
+}
+
+export async function logout(): Promise<void> {
+  await fetch('/api/auth/logout', { method: 'POST' })
+}
+
 export async function fetchState(): Promise<AppState> {
   const res = await fetch('/api/state')
   return parse<AppState>(res)

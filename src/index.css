@@ -76,6 +76,32 @@ a {
   padding: 28px 0 80px;
 }
 
+.gate {
+  min-height: 100vh;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  text-align: center;
+}
+
+.gate-card {
+  width: min(100%, 380px);
+  display: grid;
+  gap: 14px;
+  text-align: left;
+  margin-top: 8px;
+}
+
+.gate-card .primary {
+  justify-self: start;
+}
+
+.lock-btn {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+}
+
 .top {
   text-align: center;
   margin-bottom: 20px;

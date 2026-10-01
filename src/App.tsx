@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { AppState, SpinResult, WheelId } from '../shared/types.ts'
-import { fetchState, isApiError, spinWheel } from './api.ts'
+import { fetchSession, fetchState, isApiError, logout, spinWheel } from './api.ts'
 import { HistoryPanel } from './components/HistoryPanel.tsx'
 import { MovieSearch } from './components/MovieSearch.tsx'
+import { PasswordGate } from './components/PasswordGate.tsx'
 import { PickList } from './components/PickList.tsx'
 import { SeasonalBanner } from './components/SeasonalBanner.tsx'
 import { SettingsPanel } from './components/SettingsPanel.tsx'
@@ -22,6 +23,7 @@ function easeOutCubic(t: number): number {
 }
 
 export default function App() {
+  const [authed, setAuthed] = useState<boolean | null>(null)
   const [state, setState] = useState<AppState | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [tab, setTab] = useState<Tab>('tonight')
@@ -37,13 +39,39 @@ export default function App() {
       setState(next)
       setLoadError(null)
     } catch (err) {
+      if (isApiError(err) && err.body.code === 'UNAUTHORIZED') {
+        setAuthed(false)
+        setState(null)
+        return
+      }
       setLoadError(err instanceof Error ? err.message : 'Could not load family data.')
     }
   }, [])
 
   useEffect(() => {
-    void refresh()
-  }, [refresh])
+    let cancelled = false
+    void fetchSession()
+      .then((ok) => {
+        if (!cancelled) setAuthed(ok)
+      })
+      .catch(() => {
+        if (!cancelled) setAuthed(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (authed) void refresh()
+  }, [authed, refresh])
+
+  async function lock() {
+    await logout()
+    setState(null)
+    setWinner(null)
+    setAuthed(false)
+  }
 
   const activeWheel: WheelId = preview ?? state?.calendarWheel ?? 'regular'
   const people = state?.people ?? []
@@ -95,6 +123,19 @@ export default function App() {
     }
   }
 
+  if (authed === null) {
+    return (
+      <main className="page">
+        <h1>Family Choice Wheel</h1>
+        <p className="muted">Loading…</p>
+      </main>
+    )
+  }
+
+  if (!authed) {
+    return <PasswordGate onUnlock={() => setAuthed(true)} />
+  }
+
   if (loadError && !state) {
     return (
       <main className="page">
@@ -119,6 +160,9 @@ export default function App() {
   return (
     <div className="app" data-theme={activeWheel}>
       <header className="top">
+        <button type="button" className="ghost lock-btn" onClick={() => void lock()}>
+          Lock
+        </button>
         <p className="kicker">Family Choice Wheel</p>
         <h1>Friday Movie Night</h1>
         <SeasonalBanner wheel={activeWheel} preview={Boolean(preview)} />

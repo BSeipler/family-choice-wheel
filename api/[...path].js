@@ -110,6 +110,58 @@ function isChristmasMovie(title, originalTitle, keywords) {
   return CHRISTMAS_KEYWORDS.some((word) => text2.includes(word));
 }
 
+// server/auth.ts
+import { createHmac, timingSafeEqual } from "node:crypto";
+import { deleteCookie, getCookie, setCookie } from "hono/cookie";
+var PASSWORD = "Skaterboy1515!";
+var COOKIE = "fcw_session";
+var MAX_AGE_SEC = 60 * 60 * 24 * 30;
+function sign(payload) {
+  return createHmac("sha256", PASSWORD).update(payload).digest("base64url");
+}
+function safeEqual(a, b) {
+  const left = Buffer.from(a);
+  const right = Buffer.from(b);
+  if (left.length !== right.length) return false;
+  return timingSafeEqual(left, right);
+}
+function passwordMatches(input) {
+  return safeEqual(input, PASSWORD);
+}
+function sessionToken() {
+  const exp = Date.now() + MAX_AGE_SEC * 1e3;
+  const payload = String(exp);
+  return `${payload}.${sign(payload)}`;
+}
+function sessionIsValid(token) {
+  if (!token) return false;
+  const dot = token.indexOf(".");
+  if (dot <= 0) return false;
+  const payload = token.slice(0, dot);
+  const sig = token.slice(dot + 1);
+  const exp = Number(payload);
+  if (!Number.isFinite(exp) || exp < Date.now()) return false;
+  return safeEqual(sig, sign(payload));
+}
+function cookieOptions(c) {
+  return {
+    path: "/",
+    httpOnly: true,
+    secure: c.req.url.startsWith("https:"),
+    sameSite: "Lax",
+    maxAge: MAX_AGE_SEC
+  };
+}
+function readSession(c) {
+  return sessionIsValid(getCookie(c, COOKIE));
+}
+function writeSession(c) {
+  setCookie(c, COOKIE, sessionToken(), cookieOptions(c));
+}
+function clearSession(c) {
+  deleteCookie(c, COOKIE, { path: "/" });
+}
+
 // server/db.ts
 import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -308,6 +360,14 @@ function fail(status, body) {
   throw new HTTPException(status, { message: JSON.stringify(body) });
 }
 var app = new Hono();
+var OPEN_API = /* @__PURE__ */ new Set(["/api/health", "/api/auth/login", "/api/auth/session", "/api/auth/logout"]);
+app.use("/api/*", async (c, next) => {
+  if (OPEN_API.has(c.req.path)) return next();
+  if (!readSession(c)) {
+    return c.json({ error: "Enter the family password to continue.", code: "UNAUTHORIZED" }, 401);
+  }
+  return next();
+});
 app.onError((err, c) => {
   if (err instanceof HTTPException) {
     try {
@@ -325,6 +385,21 @@ app.onError((err, c) => {
     { error: "Something went wrong talking to the database.", code: "DB" },
     503
   );
+});
+app.post("/api/auth/login", async (c) => {
+  const body = await c.req.json().catch(() => ({ password: "" }));
+  if (!passwordMatches(typeof body.password === "string" ? body.password : "")) {
+    return c.json({ error: "That password is not right.", code: "UNAUTHORIZED" }, 401);
+  }
+  writeSession(c);
+  return c.json({ ok: true });
+});
+app.get("/api/auth/session", (c) => {
+  return c.json({ ok: readSession(c) });
+});
+app.post("/api/auth/logout", (c) => {
+  clearSession(c);
+  return c.json({ ok: true });
 });
 app.get("/api/health", async (c) => {
   await ensureSchema();

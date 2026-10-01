@@ -14,6 +14,7 @@ import type {
   WheelEntry,
   WheelId,
 } from '../shared/types.ts'
+import { clearSession, passwordMatches, readSession, writeSession } from './auth.ts'
 import { ensureSchema, getDb } from './db.ts'
 import { entries, history, people, settings } from './schema.ts'
 
@@ -88,6 +89,16 @@ function fail(status: 400 | 404 | 503, body: ApiErrorBody): never {
 
 const app = new Hono()
 
+const OPEN_API = new Set(['/api/health', '/api/auth/login', '/api/auth/session', '/api/auth/logout'])
+
+app.use('/api/*', async (c, next) => {
+  if (OPEN_API.has(c.req.path)) return next()
+  if (!readSession(c)) {
+    return c.json({ error: 'Enter the family password to continue.', code: 'UNAUTHORIZED' } satisfies ApiErrorBody, 401)
+  }
+  return next()
+})
+
 app.onError((err, c) => {
   if (err instanceof HTTPException) {
     try {
@@ -105,6 +116,24 @@ app.onError((err, c) => {
     { error: 'Something went wrong talking to the database.', code: 'DB' } satisfies ApiErrorBody,
     503,
   )
+})
+
+app.post('/api/auth/login', async (c) => {
+  const body = await c.req.json<{ password?: string }>().catch(() => ({ password: '' }))
+  if (!passwordMatches(typeof body.password === 'string' ? body.password : '')) {
+    return c.json({ error: 'That password is not right.', code: 'UNAUTHORIZED' } satisfies ApiErrorBody, 401)
+  }
+  writeSession(c)
+  return c.json({ ok: true })
+})
+
+app.get('/api/auth/session', (c) => {
+  return c.json({ ok: readSession(c) })
+})
+
+app.post('/api/auth/logout', (c) => {
+  clearSession(c)
+  return c.json({ ok: true })
 })
 
 app.get('/api/health', async (c) => {
