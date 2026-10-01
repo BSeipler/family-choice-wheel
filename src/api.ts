@@ -38,8 +38,12 @@ export async function addPerson(name: string, color: string): Promise<Person> {
   return parse<Person>(res)
 }
 
+function personUrl(id: string): string {
+  return `/api/people?id=${encodeURIComponent(id)}`
+}
+
 export async function updatePerson(id: string, patch: { name?: string; color?: string }): Promise<Person> {
-  const res = await fetch(`/api/people/${id}`, {
+  const res = await fetch(personUrl(id), {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(patch),
@@ -48,7 +52,7 @@ export async function updatePerson(id: string, patch: { name?: string; color?: s
 }
 
 export async function removePerson(id: string): Promise<void> {
-  const res = await fetch(`/api/people/${id}`, { method: 'DELETE' })
+  const res = await fetch(personUrl(id), { method: 'DELETE' })
   await parse(res)
 }
 

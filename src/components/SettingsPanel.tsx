@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import type { Person, Settings } from '../../shared/types.ts'
 import { addPerson, removePerson, saveSettings, updatePerson } from '../api.ts'
 
@@ -8,6 +8,62 @@ type Props = {
   people: Person[]
   settings: Settings
   onChange: () => Promise<void>
+}
+
+function colorInputValue(value: string): string {
+  const match = /^#([0-9a-f]{6})$/i.exec(value.trim())
+  return match ? `#${match[1].toLowerCase()}` : '#c94c4c'
+}
+
+function MemberColor({
+  person,
+  onChange,
+}: {
+  person: Person
+  onChange: () => Promise<void>
+}) {
+  const [color, setColor] = useState(() => colorInputValue(person.color))
+  const desired = useRef(color)
+  const latest = useRef(0)
+  const timer = useRef<number | null>(null)
+
+  useEffect(() => {
+    if (colorInputValue(person.color) === desired.current) setColor(desired.current)
+  }, [person.color])
+
+  useEffect(() => {
+    return () => {
+      if (timer.current) window.clearTimeout(timer.current)
+    }
+  }, [])
+
+  return (
+    <input
+      type="color"
+      value={color}
+      aria-label={`${person.name} color`}
+      onChange={(e) => {
+        const next = colorInputValue(e.target.value)
+        desired.current = next
+        setColor(next)
+        if (timer.current) window.clearTimeout(timer.current)
+        timer.current = window.setTimeout(() => {
+          const token = ++latest.current
+          void updatePerson(person.id, { color: next })
+            .then(async (saved) => {
+              if (token !== latest.current) return
+              desired.current = colorInputValue(saved.color)
+              await onChange()
+            })
+            .catch(() => {
+              if (token !== latest.current) return
+              desired.current = colorInputValue(person.color)
+              setColor(desired.current)
+            })
+        }, 200)
+      }}
+    />
+  )
 }
 
 export function SettingsPanel({ people, settings, onChange }: Props) {
@@ -41,12 +97,7 @@ export function SettingsPanel({ people, settings, onChange }: Props) {
         <ul className="people-admin">
           {people.map((person) => (
             <li key={person.id}>
-              <input
-                type="color"
-                value={person.color}
-                onChange={(e) => void updatePerson(person.id, { color: e.target.value }).then(onChange)}
-                aria-label={`${person.name} color`}
-              />
+              <MemberColor person={person} onChange={onChange} />
               <input
                 defaultValue={person.name}
                 onBlur={(e) => {

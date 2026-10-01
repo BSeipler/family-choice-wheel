@@ -1,4 +1,4 @@
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { eq, and, isNull } from 'drizzle-orm'
 import { wheelIdForDate } from '../shared/calendar.ts'
@@ -168,28 +168,44 @@ app.post('/api/people', async (c) => {
   return c.json(person)
 })
 
-app.patch('/api/people/:id', async (c) => {
+function personIdFrom(c: Context): string {
+  return (c.req.param('id') || c.req.query('id') || '').trim()
+}
+
+async function updatePerson(c: Context) {
   await ensureSchema()
-  const id = c.req.param('id')
+  const id = personIdFrom(c)
+  if (!id) fail(400, { error: 'Person id is required.' })
   const body = await c.req.json<{ name?: string; color?: string }>()
   const db = await getDb()
   const patch: { name?: string; color?: string } = {}
   if (typeof body.name === 'string' && body.name.trim()) patch.name = body.name.trim()
   if (typeof body.color === 'string' && body.color.trim()) patch.color = body.color.trim()
+  if (!patch.name && !patch.color) fail(400, { error: 'Nothing to update.' })
   await db.update(people).set(patch).where(eq(people.id, id))
   const rows = await db.select().from(people).where(eq(people.id, id))
   if (!rows[0]) fail(404, { error: 'Person not found.', code: 'NOT_FOUND' })
   return c.json(toPerson(rows[0]))
-})
+}
 
-app.delete('/api/people/:id', async (c) => {
+async function deletePerson(c: Context) {
   await ensureSchema()
-  const id = c.req.param('id')
+  const id = personIdFrom(c)
+  if (!id) fail(400, { error: 'Person id is required.' })
   const db = await getDb()
+  const rows = await db.select().from(people).where(eq(people.id, id))
+  if (!rows[0]) fail(404, { error: 'Person not found.', code: 'NOT_FOUND' })
   await db.delete(entries).where(eq(entries.personId, id))
   await db.delete(people).where(eq(people.id, id))
   return c.json({ ok: true })
-})
+}
+
+// Vercel only routes this catch-all function for a single /api/* segment.
+// /api/people/:id never reaches the app, so updates also accept ?id= on /api/people.
+app.patch('/api/people', updatePerson)
+app.patch('/api/people/:id', updatePerson)
+app.delete('/api/people', deletePerson)
+app.delete('/api/people/:id', deletePerson)
 
 type AddEntryBody = {
   wheelId?: WheelId
