@@ -98,6 +98,9 @@ app.onError((err, c) => {
     }
   }
   console.error(err)
+  if (err instanceof Error && err.message.includes('TURSO_DATABASE_URL')) {
+    return c.json({ error: err.message, code: 'DB' } satisfies ApiErrorBody, 503)
+  }
   return c.json(
     { error: 'Something went wrong talking to the database.', code: 'DB' } satisfies ApiErrorBody,
     503,

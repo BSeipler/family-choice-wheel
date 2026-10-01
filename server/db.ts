@@ -12,6 +12,9 @@ let db: LibSQLDatabase<typeof schema> | undefined
 
 function databaseUrl(): string {
   const url = process.env.TURSO_DATABASE_URL?.trim()
+  if (process.env.VERCEL && (!url || url.startsWith('file:'))) {
+    throw new Error('Set TURSO_DATABASE_URL to a hosted Turso database before using this app on Vercel.')
+  }
   if (url) return url
   const filePath = resolve(process.cwd(), 'data/wheel.db')
   mkdirSync(dirname(filePath), { recursive: true })
